@@ -107,6 +107,53 @@ def relu(a):
     return ret
 
 
+class MaxBackward(BinaryBackward):
+    def __call__(self, gradient):
+        da = gradient if self.a.value >= self.b.value else 0
+        db = gradient if self.b.value > self.a.value else 0
+        self.update(da, db)
+    def __str__(self):
+        return '<MaxBackward>'
+
+def maximum(a, b):
+    if not isinstance(a, Number):
+        a = Number(a)
+    if not isinstance(b, Number):
+        b = Number(b)
+    ret = Number(a.value if a.value >= b.value else b.value)
+    ret.grad_fn = MaxBackward(a, b)
+    ret.parent_nodes.append(a)
+    ret.parent_nodes.append(b)
+    return ret
+
+
+class LogBackward(UnaryBackward):
+    def __call__(self, gradient):
+        da = gradient * (1 / self.a.value)
+        self.update(da)
+    def __str__(self):
+        return '<LogBackward>'
+
+def log(a):
+    ret = Number(math.log(a.value))
+    ret.grad_fn = LogBackward(a)
+    ret.parent_nodes.append(a)
+    return ret
+
+class ExpBackward(UnaryBackward):
+    def __call__(self, gradient):
+        da = gradient * math.exp(self.a.value)
+        self.update(da)
+    def __str__(self):
+        return '<ExpBackward>'
+
+def exp(a):
+    ret = Number(math.exp(a.value))
+    ret.grad_fn = ExpBackward(a)
+    ret.parent_nodes.append(a)
+    return ret
+
+
 class Number(object):
     def __init__(self, value, grad=None):
         self.value = value
@@ -208,6 +255,9 @@ class Number(object):
     def __truediv__(self, other):
         return div(self, other)
 
+    def __neg__(self):
+        return mul(self, -1)
+
 
 class SGD:
     def __init__(self, params, lr=0.01):
@@ -222,6 +272,40 @@ class SGD:
                 p.value -= p.grad * self.lr
 
 
+def numerical_gradients(func, params, h=1e-8):
+    grads = []
+    for idx in range(len(params)):
+        p = list(map(lambda x: Number(x), params))
+        # f(x + h) - f(x) / h
+        f_x = func(*p).value
+        p[idx].value += h
+        f_x_h = func(*p).value
+
+        grads.append((f_x_h - f_x) / h)
+
+    return grads
+
+def analytical_gradients(func, params):
+    p = list(map(lambda x: Number(x), params))
+    output = func(*p)
+    output.backward()
+    grads = [v.grad for v in p]
+    return grads
+
+def compare_gradients(func, params, h=1e-8):
+    n_grads = numerical_gradients(func, params, h)
+    a_grads = analytical_gradients(func, params)
+
+    # norm(gradients - numericalGradients)/norm(gradients + numericalGradients)
+    diffs = list(map(lambda x: abs(x[1] - x[0]) / abs(x[1] + x[0]), zip(n_grads, a_grads)))
+    return diffs
+
+
+
+def sigmoid2(x):
+    return 1 / (1 + exp(-x))
+
+
 if __name__ == '__main__':
 
     a = Number(1)
@@ -232,12 +316,19 @@ if __name__ == '__main__':
 
     opt = SGD([x, y])
 
-    for i in range(100):
+    for i in range(10):
 
         output = sigmoid(a * x + b * y + c)
 
         print(output)
-
         opt.zero_grad()
         output.backward()
         opt.step()
+
+    #     # print(output) # <0.8807970779778823,1,<SigmoidBackward>>
+    #     # print(a.grad) # -0.10499358540350662
+    #     # print(b.grad) # 0.31498075621051985
+    #     # print(c.grad) # 0.10499358540350662
+    #     # print(x.grad) # 0.10499358540350662
+    #     # print(y.grad) # 0.20998717080701323
+
