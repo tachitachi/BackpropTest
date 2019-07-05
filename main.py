@@ -6,7 +6,6 @@ import numpy as np
 from tqdm import tqdm
 
 def model(x, w1, b1, w2, b2):
-
     net = bp.relu(bp.matmul(x, w1) + b1)
     net = bp.softmax(bp.matmul(net, w2) + b2)
     return net
@@ -28,7 +27,6 @@ if __name__ == '__main__':
    
     train = data.MNIST('train', one_hot=True)
     test = data.MNIST('test', one_hot=True)
-
     train_loader = data.DataLoader(train, batch_size=32, shuffle=True, repeat=False)
     test_loader = data.DataLoader(train, batch_size=32, shuffle=False, repeat=False)
 
@@ -38,7 +36,6 @@ if __name__ == '__main__':
     opt = bp.SGD([w1, b1, w2, b2], lr=1e-3)
 
     epochs = 5
-
     for _ in tqdm(range(epochs)):
         for i, (x, y) in enumerate(train_loader):
             
@@ -59,13 +56,11 @@ if __name__ == '__main__':
     correct = 0
     total = 0
     for i, (x, y) in tqdm(enumerate(test_loader)):
-
         x = Tensor(x.reshape((-1, 28*28)))
         y = Tensor(y)
         output = model(x, w1, b1, w2, b2)
 
         acc, c, t = accuracy(y, output)
-
         correct += c
         total += t
 

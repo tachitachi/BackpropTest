@@ -23,7 +23,6 @@ class BinaryBackward:
     def __call__(self, gradient):
         raise NotImplementedError
 
-
 class AddBackward(BinaryBackward):
     def __call__(self, gradient):
         da = gradient
@@ -31,7 +30,6 @@ class AddBackward(BinaryBackward):
         self.update(da, db)
     def __str__(self):
         return '<AddBackward>'
-
 
 def add(a, b):
     if type(b) == float or type(b) == int:
@@ -59,10 +57,6 @@ def mul(a, b):
     ret.parent_nodes.append(b)
     return ret
 
-
-
-
-
 class DivBackward(BinaryBackward):
     def __call__(self, gradient):
         a = self.a.value
@@ -70,13 +64,7 @@ class DivBackward(BinaryBackward):
 
         da = 1 * b * gradient
         db = (-1 * (b**2)) * a * gradient
-
-        #print(da.shape, db.shape, self.a.shape, self.b.shape, db)
-
-        #print('before crash')
-
         self.update(da, db)
-        #print('after crash')
     def __str__(self):
         return '<DivBackward>'
 
@@ -88,9 +76,6 @@ def div(a, b):
     ret.parent_nodes.append(a)
     ret.parent_nodes.append(b)
     return ret
-
-
-
 
 class MatmulBackward(BinaryBackward):
     def __call__(self, gradient):
@@ -106,9 +91,6 @@ def matmul(a, b):
     ret.parent_nodes.append(a)
     ret.parent_nodes.append(b)
     return ret
-
-
-
 
 
 class SigmoidBackward(UnaryBackward):
@@ -189,10 +171,7 @@ def exp(a):
     return ret
 
 
-
-
 # reduce functions
-
 class ReduceSumBackward(UnaryBackward):
     def __call__(self, gradient):
         da = gradient * 1
@@ -216,13 +195,9 @@ def reduce_sum(a, axis=None, keepdims=False):
     ret.parent_nodes.append(a)
     return ret
 
-
-
-
 class ReduceMeanBackward(UnaryBackward):
     def __call__(self, gradient):
         # Gradient is (1 / num_elements)
-
         axes = self.axis
         if type(axes) == int:
             axes = (axes,)
@@ -252,7 +227,6 @@ def reduce_mean(a, axis=None, keepdims=False):
     ret.parent_nodes.append(a)
     return ret
 
-
 class ReduceMaxBackward(UnaryBackward):
     def __call__(self, gradient):
         # Gradient is 1 where the value is max, and 0 otherwise
@@ -272,7 +246,6 @@ class ReduceMaxBackward(UnaryBackward):
     def __str__(self):
         return '<ReduceMaxBackward>'
 
-
 def reduce_max(a, axis=None, keepdims=False):
     ret = Tensor(np.max(a.value, axis=axis, keepdims=keepdims))
     ret.grad_fn = ReduceMaxBackward(a, axis, keepdims=keepdims)
@@ -280,13 +253,12 @@ def reduce_max(a, axis=None, keepdims=False):
     return ret
 
 def softmax(a, axis=None):
-    return _softmax(a - reduce_max(a))
+    return _softmax(a - reduce_max(a, axis), axis)
 
 def _softmax(a, axis=None):
     if axis is None:
         axis = len(a.shape) - 1
     return exp(a) / reduce_sum(exp(a), axis=axis, keepdims=True)
-
 
 # Broadcasting rules:
 # scalar - sum over everything
@@ -332,19 +304,16 @@ class Tensor(object):
     def accumulate_gradient(self, grad, shape=None):
         if self.grad is None:
             self.grad = np.zeros_like(self.value, dtype=self.dtype)
-
         if shape is None:
             shape = self.value.shape
 
         grads = reduce_grads(grad, shape)
-
         self.grad += grads
 
     def _backward(self):
         if self.grad_fn is not None:
             self.grad_fn(self.grad)
 
-    # HACK: This delays backproping from this node until all other dependencies are done
     def backward(self, gradient=None):
         if gradient is None and self.grad is None:
             self.grad = np.ones_like(self.value, dtype=self.dtype)
@@ -437,7 +406,6 @@ def numerical_gradients(func, params, h=1e-8):
         f_x_h = func(*p).value
 
         grads.append(reduce_grads((f_x_h - f_x) / h, p[idx].shape))
-
     return grads
 
 
@@ -466,11 +434,8 @@ if __name__ == '__main__':
         return matmul(x, y)
 
     params = [x, w]
-
     z = f(*params)
-
     z.backward()
 
     grads = numerical_gradients(f, params)
-
     print(grads)
